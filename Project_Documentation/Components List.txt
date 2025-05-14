@@ -1,0 +1,16 @@
+Components List:
+
+PIR x1
+LDR x1
+LED x1
+Diode x1
+Fan(12V) x1
+Transistor x1
+Resistor x3
+Battery(12V) x1
+Potentiometer x1
+Relay x1
+Light Bulb(3.3V) x1
+Breadboard(Small) x2
+ESP32_C3 Super Mini x1
+Jumper Wires
