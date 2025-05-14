@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Smart Room Controller</title>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+
+  <!-- Neon digital font -->
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-image: url("{{ url_for('static', filename='images/smart.jpg') }}");
+      background-size: cover;
+      background-position: center center;
+      background-attachment: fixed;
+      color: #333;
+      margin: 0;
+      padding: 0;
+      text-align: center;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .container {
+      max-width: 700px;
+      margin: 30px;
+      padding: 20px;
+      background-color: rgba(255, 255, 255, 0.8);
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    h1 {
+      text-align: center;
+      color: #2c3e50;
+      margin: 20px 0 10px;
+    }
+
+    .sensor-data {
+      margin: 20px 0;
+      padding: 15px;
+      background-color: #f8f9fa;
+      border-radius: 10px;
+    }
+
+    .sensor {
+      display: flex;
+      justify-content: space-between;
+      margin: 10px 0;
+      font-size: 17px;
+    }
+
+    .sensor span {
+      font-weight: bold;
+    }
+
+    .controls {
+      margin-top: 30px;
+    }
+
+    .controls h3 {
+      margin-bottom: 10px;
+      color: #444;
+    }
+
+    input[type="range"] {
+      width: 100%;
+    }
+
+    button {
+      margin-top: 8px;
+      margin-right: 10px;
+      padding: 8px 16px;
+      font-size: 14px;
+      background-color: #3498db;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #2980b9;
+    }
+
+    /* Bottom-left corner image */
+    .corner-logo-container {
+      position: fixed;
+      bottom: 50px;
+      left: 10px;
+      display: inline-block;
+      z-index: 100;
+    }
+
+    .corner-logo {
+      width: 100px;
+      height: auto;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .corner-logo:hover {
+      transform: scale(1.1);
+      box-shadow: 0 6px 12px rgba(0,0,0,0.4);
+    }
+
+    .tooltip {
+      visibility: hidden;
+      width: 250px;
+      background-color: rgba(0, 0, 0, 0.7);
+      color: #fff;
+      text-align: center;
+      border-radius: 6px;
+      padding: 5px;
+      position: absolute;
+      bottom: -30px;
+      left: 0;
+      margin-left: 10px;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .corner-logo-container:hover .tooltip {
+      visibility: visible;
+      opacity: 1;
+    }
+
+    @media (max-width: 600px) {
+      .corner-logo {
+        width: 80px;
+      }
+    }
+
+    /* Neon Clock */
+    .neon-clock {
+      position: fixed;
+      top: 15px;
+      left: 20px;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 28px;
+      color: #c77dff;
+      text-shadow: 0 0 5px #00f0ff, 0 0 10px #00f0ff, 0 0 20px #00f0ff;
+      background-color: rgba(0, 0, 0, 0.3);
+      padding: 8px 16px;
+      border-radius: 8px;
+      z-index: 200;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Neon Clock -->
+  <div id="clock" class="neon-clock"></div>
+
+  <div class="container">
+    <h1>🏠 Smart Room Controller</h1>
+
+    <!-- Sensor Data Section -->
+    <div class="sensor-data">
+      <div class="sensor">🌞 <span>LDR:</span> <span id="ldr">--</span></div>
+      <div class="sensor">👀 <span>PIR:</span> <span id="pir">--</span></div>
+      <div class="sensor">🎛️ <span>Potentiometer:</span> <span id="pot">--</span></div>
+      <div class="sensor">🌀 <span>Fan PWM:</span> <span id="fan_pwm">--</span></div>
+      <div class="sensor">💡 <span>Light State:</span> <span id="light_state">--</span></div>
+    </div>
+
+    <!-- Controls Section -->
+    <div class="controls">
+      <h3>🌀 Fan Control</h3>
+      <input type="range" id="fanSpeed" min="0" max="255" value="0"/>
+      <button onclick="setFanSpeed()">Set Fan Speed</button>
+
+      <!-- Pin 6 Control -->
+      <h3>💡 Light Control</h3>
+      <button id="turn-on-pin6" class="btn">Turn ON</button>
+      <button id="turn-off-pin6" class="btn btn-danger">Turn OFF</button>
+    </div>
+  </div>
+
+  <!-- Bottom-left corner image with tooltip -->
+  <div class="corner-logo-container">
+    <a href="https://www.cut.ac.za/" target="_blank">
+      <img class="corner-logo" 
+           src="https://tethys-engineering.pnnl.gov/sites/default/files/styles/large/public/taxonomy-images/logo_9.png?itok=2esrOPzQ" 
+           alt="Logo" />
+      <div class="tooltip">Visit Central University of Technology</div>
+    </a>
+  </div>
+
+  <script>
+    const socket = io();
+
+    socket.on("sensor_update", (data) => {
+      document.getElementById("ldr").textContent = data.ldr;
+      document.getElementById("pir").textContent = data.pir;
+      document.getElementById("pot").textContent = data.pot;
+      document.getElementById("fan_pwm").textContent = data.fan_pwm;
+      document.getElementById("light_state").textContent = data.light_state ? "ON" : "OFF";
+    });
+
+    async function setFanSpeed() {
+      const speed = document.getElementById("fanSpeed").value;
+      const response = await fetch("/set_fan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fan_speed: parseInt(speed) })
+      });
+      const result = await response.json();
+      alert(result.status || result.error);
+    }
+
+    async function toggleLight(state) {
+      const response = await fetch("/toggle_light", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ state })
+      });
+      const result = await response.json();
+      alert(result.status || result.error);
+    }
+
+    // Clock updater
+    function updateClock() {
+      const now = new Date();
+      let hrs = now.getHours().toString().padStart(2, '0');
+      let mins = now.getMinutes().toString().padStart(2, '0');
+      let secs = now.getSeconds().toString().padStart(2, '0');
+      document.getElementById('clock').textContent = `${hrs}:${mins}:${secs}`;
+    }
+
+    updateClock();
+    setInterval(updateClock, 1000);
+  </script>
+</body>
+</html>
